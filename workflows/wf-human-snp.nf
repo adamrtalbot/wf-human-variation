@@ -52,8 +52,8 @@ workflow snp {
         // > Step 0
         make_chunks(bam_channel, ref, bed, model, chromosome_codes, genotyping_ch)
         chunks = make_chunks.out.chunks_file
-            .splitText(){ 
-                cols = (it =~ /(.+)\s(.+)\s(.+)/)[0]
+            .splitText() { 
+                def cols = (it =~ /(.+)\s(.+)\s(.+)/)[0]
                 ["contig": cols[1], "chunk_id":cols[2], "total_chunks":cols[3]]}
         contigs = make_chunks.out.contigs_file.splitText() { it.trim() }
         cmd_file = make_chunks.out.cmd_file
@@ -105,7 +105,7 @@ workflow snp {
         candidate_beds = create_candidates.out.candidate_bed.flatMap {
             x ->
                 // output globs can return a list or single item
-                y = x[2]; if(! (y instanceof java.util.ArrayList)){y = [y]}
+                def y = x[2]; if(! (y instanceof java.util.ArrayList)){y = [y]}
                 // effectively duplicate chr for all beds - [chr, bed]
                 y.collect { [x[1], it] } }
         // produce something emitting: [[chr, bam, bai, meta, vcf], [chr20, bed], [ref, fai, cache], model]
@@ -275,9 +275,13 @@ workflow report_snp {
 
         // Create report
         makeReport(
-            vcf_stats, software_versions.collect(), workflow_params, clinvar_vcf)
+            vcf_stats, software_versions.collect(), workflow_params, clinvar_vcf
+        )
+        report_report = makeReport.out.report
+        report_json = makeReport.out.json
+        
 
     emit:
-        report = makeReport.out.report
-        snp_stats_json = makeReport.out.json
+        report         = report_report
+        snp_stats_json = report_json
 }

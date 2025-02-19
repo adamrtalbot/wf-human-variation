@@ -1,7 +1,15 @@
-def longphase_memory = [8.GB, 32.GB, 56.GB]
-def whatshap_memory = [4.GB, 8.GB, 12.GB]
-def haptag_memory = [4.GB, 8.GB, 12.GB]
-def aggregate_memory = [4.GB, 8.GB, 16.GB]
+def longphase_memory() {
+    [8.GB, 32.GB, 56.GB]
+} 
+def whatshap_memory() {
+    [4.GB, 8.GB, 12.GB]
+}
+def haptag_memory() {
+    [4.GB, 8.GB, 12.GB]
+}
+def aggregate_memory() {
+    [4.GB, 8.GB, 16.GB]
+}
 
 // As of Clair3 v1.0.6, set `--min_snp_af` and `--min_indel_af` to 0 with `--vcf_fn`.
 // def snp_min_af = params.vcf_fn ? "--snp_min_af 0.0": "--snp_min_af ${params.snp_min_af}"
@@ -132,9 +140,9 @@ process aggregate_pileup_variants {
     // to use for phasing.
     label "wf_human_snp"
     cpus 2
-    memory { aggregate_memory[task.attempt - 1] }
+    memory { aggregate_memory()[task.attempt - 1] }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy  { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
         tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
@@ -199,7 +207,7 @@ process phase_contig {
     //   but adds the VCF as it is now tagged with phasing information
     //   used later in the full-alignment model
     cpus 4
-    memory { longphase_memory[task.attempt - 1] }
+    memory { longphase_memory()[task.attempt - 1] }
     maxRetries 2
     errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
@@ -394,7 +402,7 @@ process aggregate_full_align_variants {
     // Sort and merge all "full alignment" variants
     label "wf_human_snp"
     cpus 2
-    memory { aggregate_memory[task.attempt - 1] }
+    memory { aggregate_memory()[task.attempt - 1] }
     maxRetries 2
     errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
@@ -482,9 +490,9 @@ process post_clair_phase_contig {
     // CW-2383: now uses base image to allow phasing of both snps and indels
     cpus { params.use_longphase ? 4 : 1}
     // Define memory from phasing tool and number of attempt
-    memory { params.use_longphase ? longphase_memory[task.attempt - 1] : whatshap_memory[task.attempt - 1] }
+    memory { params.use_longphase ? longphase_memory()[task.attempt - 1] : whatshap_memory()[task.attempt - 1] }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
         tuple val(xam_meta), val(contig),
@@ -534,7 +542,7 @@ process post_clair_contig_haplotag {
 
     cpus 4
     // Define memory from phasing tool and number of attempt
-    memory { haptag_memory[task.attempt - 1] }
+    memory { haptag_memory()[task.attempt - 1] }
     maxRetries 2
     errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
@@ -563,7 +571,7 @@ process aggregate_all_variants{
     cpus 4
     memory { 8.GB * task.attempt }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
         tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         tuple val(xam_meta), path("merge_output/*")
@@ -621,12 +629,12 @@ process refine_with_sv {
     cpus 4
     memory { 8.GB * task.attempt - 1.GB }
     maxRetries 1
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
         tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH') 
         tuple val(xam_meta), path(clair_vcf, stageAs: 'clair.vcf.gz'), path(clair_tbi, stageAs: 'clair.vcf.gz.tbi'), val(contig)
-        tuple path(xam), path(xam_idx), val(xam_meta) // this may be a haplotagged_bam or input CRAM 
+        tuple path(xam), path(xam_idx), val(xam_meta2) // this may be a haplotagged_bam or input CRAM 
         path(sniffles_vcf)
     output:
         tuple val(xam_meta), path("${xam_meta.alias}.${contig}.wf_snp.vcf.gz"), path("${xam_meta.alias}.${contig}.wf_snp.vcf.gz.tbi"), emit: vcf
@@ -706,6 +714,7 @@ process output_snp {
         file fname
     output:
         file fname
+    script:
     """
     echo "Writing output files"
     """
@@ -745,6 +754,7 @@ process vcfStats {
         tuple val(xam_meta), path(vcf), path(index)
     output:
         tuple val(xam_meta), path("variants.stats")
+    script:
     """
     bcftools stats --threads ${task.cpus - 1} $vcf > variants.stats
     """
@@ -761,8 +771,8 @@ process makeReport {
         path "params.json"
         path clinvar_vcf
     output:
-        path "${xam_meta.alias}.wf-human-snp-report.html", emit: 'report', optional: true
-        path "${xam_meta.alias}.snvs.json", emit: 'json'
+        path "${xam_meta.alias}.wf-human-snp-report.html", emit: report, optional: true
+        path "${xam_meta.alias}.snvs.json", emit: json
     script:
         def clinvar = clinvar_vcf ?: ""
         def annotation = params.annotation ? "" : "--skip_annotation"

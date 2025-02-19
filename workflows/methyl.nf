@@ -171,8 +171,8 @@ workflow mod {
             modkit_bam = modkit_bam
             | combine(probs)
             | map{
-                xam, xai, meta, probs ->
-                [meta + [probs: probs], xam, xai]
+                xam, xai, meta, probs2 ->
+                [meta + [probs: probs2], xam, xai]
             }
         } else {
             target_chrom = bam_flagstats
@@ -187,9 +187,9 @@ workflow mod {
             modkit_bam = target_chrom
             | combine(modkit_bam)
             | combine(probs)
-            | map{
-                sq, xam, xai, meta, probs ->
-                [meta + [sq:sq, probs:probs], xam, xai]
+            | map {
+                sq, xam, xai, meta, probs3 ->
+                [meta + [sq:sq, probs: probs3], xam, xai]
             }
         }
 

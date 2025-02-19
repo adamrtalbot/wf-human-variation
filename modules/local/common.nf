@@ -59,9 +59,9 @@ process decompress_ref {
 //NOTE grep MOSDEPTH_TUPLE if changing output tuple
 process mosdepth {
     cpus 4
-    memory {4.GB * task.attempt}
+    memory { 4.GB * task.attempt }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
         file target_bed
@@ -107,18 +107,21 @@ process mosdepth {
         # If gene summary requested and a BED provided, run mosdepth again without -x to get precise coverage 
         # Use thresholds and regions file to create gene summary
         if [ "${create_gene_summary}" = true ]; then
-            mosdepth \
-            -t $task.cpus \
-            -b ${target_bed} \
-            --thresholds 1,10,15,20,30 \
-            --no-per-base \
-            ${xam_meta.alias}.gene \
+            mosdepth \\
+            -t $task.cpus \\
+            -b ${target_bed} \\
+            --thresholds 1,10,15,20,30 \\
+            --no-per-base \\
+            ${xam_meta.alias}.gene \\
             $xam
 
             gunzip -c ${xam_meta.alias}.gene.thresholds.bed.gz > thresholds.bed
             gunzip -c ${xam_meta.alias}.gene.regions.bed.gz  > regions.bed
 
-            workflow-glue generate_gene_summary --mosdepth_threshold thresholds.bed --mosdepth_average regions.bed --output ${xam_meta.alias}.gene_summary.tsv
+            workflow-glue generate_gene_summary \\
+                --mosdepth_threshold thresholds.bed \\
+                --mosdepth_average regions.bed \\
+                --output ${xam_meta.alias}.gene_summary.tsv
         fi
         """
 }
@@ -202,8 +205,8 @@ process getGenome {
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
     output:
-        env genome_build, emit: genome_build optional true
-     script:
+        env 'genome_build', emit: genome_build, optional: true
+    script:
         // set flags for subworkflows that have genome build restrictions
         def str_arg = params.str ? "--str" : ""
         """
@@ -245,7 +248,7 @@ process downsampling {
         tuple val(to_downsample), val(downsampling_rate)
         tuple val(xam_fmt), val(xai_fmt)
     output:
-        tuple path("downsampled.${xam_fmt}"), path("downsampled.${xam_fmt}.${xai_fmt}"), val(xam_meta), emit: xam optional true
+        tuple path("downsampled.${xam_fmt}"), path("downsampled.${xam_fmt}.${xai_fmt}"), val(xam_meta), emit: xam, optional: true
     script:
         """
         samtools view \\
@@ -326,7 +329,7 @@ process failedQCReport  {
         // a small region, and flat everywhere else) but only for the regions selected.
         def genome_wide_depth = params.bed ? "" : "--reference_fai ref.fasta.fai"
         def report_name = "${xam_meta.alias}.wf-human-alignment-report.html"
-        def using_user_bed = using_user_bed ? "--using_user_bed" : ""
+        def using_user_bed_cmd = using_user_bed ? "--using_user_bed" : ""
         """
         workflow-glue report_al \\
             --name ${report_name} \\
@@ -342,7 +345,7 @@ process failedQCReport  {
             ${genome_wide_depth} \\
             --low_cov ${params.bam_min_coverage} \\
             --workflow_version ${workflow.manifest.version} \\
-            ${using_user_bed}
+            ${using_user_bed_cmd}
         """
 }
 
@@ -373,7 +376,7 @@ process makeAlignmentReport {
 
     script:
         def report_name = "${xam_meta.alias}.wf-human-alignment-report.html"
-        def using_user_bed = using_user_bed ? "--using_user_bed" : ""
+        def using_user_bed_cmd = using_user_bed ? "--using_user_bed" : ""
         """
         workflow-glue report_al \\
             --name ${report_name} \\
@@ -388,7 +391,7 @@ process makeAlignmentReport {
             --window_size ${params.depth_window_size} \\
             --params params.json \\
             --workflow_version ${workflow.manifest.version} \\
-            ${using_user_bed}
+            ${using_user_bed_cmd}
         """
 }
 
@@ -623,6 +626,7 @@ process output_cnv {
         path fname
     output:
         path fname
+    script:
     """
     echo "Writing output files"
     """
@@ -642,7 +646,7 @@ process infer_sex {
     input:
         path "mosdepth.summary.txt"
     output:
-        env inferred_sex
+        env 'inferred_sex'
     script:
         """
         # First, grep the X and Y coverage for the regions; then compute the rate if both are non-0; finally, infer the sex.

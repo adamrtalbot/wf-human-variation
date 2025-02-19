@@ -79,8 +79,8 @@ include {
 
 
 // entrypoint workflow
-WorkflowMain.initialise(workflow, params, log)
 workflow {
+    WorkflowMain.initialise(workflow, params, log)
 
     Map colors = NfcoreTemplate.logColours(params.monochrome_logs)
 
@@ -386,9 +386,9 @@ workflow {
         // prepare ready files
         ratio.ready
             .combine(pass_bam_channel)
-            .map{ready, ratio, xam, xai, meta -> [xam, xai, meta]}
+            .map{ready, _ratio, xam, xai, meta -> [xam, xai, meta]}
             .branch{
-                xam, xai, meta ->
+                xam, _xai, _meta ->
                 cram: xam.name.endsWith('.cram')
                 bam: xam.name.endsWith('.bam')
             }
@@ -398,7 +398,7 @@ workflow {
         // Avoid issues with BAM being passed to `cram_to_bam`.
         ready_bam_channel = cram_to_bam(
             branched_bam_channel.cram,
-            ref_channel.map { ref, index, cache, path -> [ref, index] }
+            ref_channel.map { _ref, index, cache, path -> [_ref, index] }
         )
         | map { xam, xai, meta -> [xam, xai, meta + [output: false, is_cram: false]] }
         | mix(branched_bam_channel.bam)
@@ -533,8 +533,8 @@ workflow {
                 // Check if the coverage is appropriate
                 | map {
                     mean, n_lines_v -> 
-                    int n_lines = n_lines_v as int
-                    boolean pass = mean > params.bam_min_coverage && n_lines > 0
+                    int _n_lines = n_lines_v as int
+                    boolean pass = mean > params.bam_min_coverage && _n_lines > 0
                     [pass, mean]
                 }
 
