@@ -86,18 +86,18 @@ process mosdepth {
         # and convert them into windows of the given size [CW-2015]
         # The workflow now sort the bed input, merge overlapping intervals and then build windows
         # preventing crash in downstream tools [CW-2247]
-        sort -k 1,1 -k2,2n ${target_bed} | \\
-            bedtools merge -i - | \\
-            bedtools makewindows -b - -w ${window_size} > cut.bed
+        sort -k 1,1 -k2,2n ${target_bed} \\
+        | bedtools merge -i - \\
+        | bedtools makewindows -b - -w ${window_size} > cut.bed
         # Run mosdepth
         mosdepth \\
-        -x \\
-        -t $task.cpus \\
-        -b cut.bed \\
-        --thresholds 1,10,15,20,30 \\
-        ${perbase_args} \\
-        ${xam_meta.alias} \\
-        $xam
+            -x \\
+            -t $task.cpus \\
+            -b cut.bed \\
+            --thresholds 1,10,15,20,30 \\
+            ${perbase_args} \\
+            ${xam_meta.alias} \\
+            $xam
 
         # Rename the output, avoiding ambiguity in the output formatting
         if [ -e ${xam_meta.alias}.per-base.bed.gz ]; then
