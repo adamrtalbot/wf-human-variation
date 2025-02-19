@@ -1,5 +1,3 @@
-import groovy.json.JsonBuilder
-
 // NOTE VCF entries for alleles with no support are removed to prevent them from
 //      breaking downstream parsers that do not expect them
 // --input-exclude-flags 2308: Remove unmapped (4), non-primary (256) and supplemental (2048) alignments
@@ -7,18 +5,15 @@ process sniffles2 {
     label "wf_human_sv"
     cpus params.threads
     memory 6.GB
+    publishDir path: "${params.out_dir}", pattern: "${xam_meta.alias}.wf_sv.snf", mode: 'copy'
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
         file tr_bed
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         val genome_build
     output:
         tuple val(xam_meta), path("*.sniffles.vcf"), emit: vcf
         path "${xam_meta.alias}.wf_sv.snf", emit: snf
-    publishDir \
-        path: "${params.out_dir}",
-        pattern: "${xam_meta.alias}.wf_sv.snf",
-        mode: 'copy'
     script:
         // if tr_arg is not provided and genome_build is set
         // automatically pick the relevant TR BED from the SV image
@@ -35,19 +30,19 @@ process sniffles2 {
         // Perform internal phasing only if snp not requested; otherwise, use joint phasing.
         def phase = params.phased ? "--phase" : ""
     """
-    sniffles \
-        --threads $task.cpus \
-        --sample-id ${xam_meta.alias} \
-        --output-rnames \
-        ${min_sv_len} \
-        --cluster-merge-pos $params.cluster_merge_pos \
-        --input $xam \
-        --reference $ref \
-        --input-exclude-flags 2308 \
-        --snf ${xam_meta.alias}.wf_sv.snf \
-        $tr_arg \
-        $sniffles_args \
-        $phase \
+    sniffles \\
+        --threads $task.cpus \\
+        --sample-id ${xam_meta.alias} \\
+        --output-rnames \\
+        ${min_sv_len} \\
+        --cluster-merge-pos $params.cluster_merge_pos \\
+        --input $xam \\
+        --reference $ref \\
+        --input-exclude-flags 2308 \\
+        --snf ${xam_meta.alias}.wf_sv.snf \\
+        $tr_arg \\
+        $sniffles_args \\
+        $phase \\
         --vcf ${xam_meta.alias}.sniffles.vcf
     sed '/.:0:0:0:NULL/d' ${xam_meta.alias}.sniffles.vcf > tmp.vcf
     mv tmp.vcf ${xam_meta.alias}.sniffles.vcf
@@ -73,13 +68,13 @@ process filterCalls {
     bcftools view -O z $vcf > input.vcf.gz && tabix -p vcf input.vcf.gz
 
     # Create filtering script
-    get_filter_calls_command.py \
-        --bcftools_threads $task.cpus \
-        --target_bedfile $target_bed \
-        --vcf input.vcf.gz \
-        --depth_summary $mosdepth_summary \
-        --min_read_support $params.min_read_support \
-        --min_read_support_limit $params.min_read_support_limit \
+    get_filter_calls_command.py \\
+        --bcftools_threads $task.cpus \\
+        --target_bedfile $target_bed \\
+        --vcf input.vcf.gz \\
+        --depth_summary $mosdepth_summary \\
+        --min_read_support $params.min_read_support \\
+        --min_read_support_limit $params.min_read_support_limit \\
         ${ctgs_filter} > filter.sh
 
     # Run filtering
@@ -131,7 +126,7 @@ process getParams {
     output:
         path "params.json"
     script:
-        def paramsJSON = new JsonBuilder(params).toPrettyString()
+        def paramsJSON = new groovy.json.JsonBuilder(params).toPrettyString()
     """
     # Output nextflow params object to JSON
     echo '$paramsJSON' > params.json
@@ -156,16 +151,16 @@ process report {
         def evalResults = eval_json.name != 'OPTIONAL_FILE' ? "--eval_results ${eval_json}" : ""
         def generate_html = params.output_report ? "" : "--skip_report"
     """
-    workflow-glue report_sv \
-        $report_name \
-        --vcf $vcf \
-        --params params.json \
-        --params-hidden 'help,schema_ignore_params,${params.schema_ignore_params}' \
-        --versions $versions \
-        --revision ${workflow.revision} \
-        --commit ${workflow.commitId} \
-        --output_json "${xam_meta.alias}.svs.json" \
-        --workflow_version ${workflow.manifest.version} \
+    workflow-glue report_sv \\
+        $report_name \\
+        --vcf $vcf \\
+        --params params.json \\
+        --params-hidden 'help,schema_ignore_params,${params.schema_ignore_params}' \\
+        --versions $versions \\
+        --revision ${workflow.revision} \\
+        --commit ${workflow.commitId} \\
+        --output_json "${xam_meta.alias}.svs.json" \\
+        --workflow_version ${workflow.manifest.version} \\
         $evalResults $generate_html
     """
 }
@@ -181,6 +176,7 @@ process output_sv {
         path fname
     output:
         path fname
+    script:
     """
     echo "Writing output files"
     """

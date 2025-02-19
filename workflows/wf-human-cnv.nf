@@ -1,5 +1,3 @@
-import groovy.json.JsonBuilder
-
 include {
     callCNV;
     getVersions;
@@ -9,10 +7,7 @@ include {
     makeReport
 } from "../modules/local/wf-human-cnv.nf"
 
-include {
-    mosdepth;
-    annotate_vcf
-} from "../modules/local/common.nf"
+include { mosdepth; annotate_vcf } from "../modules/local/common.nf"
 
 workflow cnv {
     take:

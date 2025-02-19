@@ -1,7 +1,3 @@
-import java.nio.file.NoSuchFileException
-
-import ArgumentParser
-
 enum InputType {
     SingleFile,
     TopLevelDir,
@@ -621,9 +617,9 @@ process checkBamHeaders {
         tuple(
             val(meta),
             path("input_dir/reads*.bam", includeInputs: true),
-            env(IS_UNALIGNED),
-            env(MIXED_HEADERS),
-            env(IS_SORTED),
+            env('IS_UNALIGNED'),
+            env('MIXED_HEADERS'),
+            env('IS_SORTED'),
         )
     script:
     """
@@ -646,7 +642,7 @@ process validateIndex {
             val(meta),
             path("reads.bam", includeInputs: true),
             path("reads.bam.bai", includeInputs: true),
-            env(HAS_VALID_INDEX)
+            env('HAS_VALID_INDEX')
         )
     script:
     """
@@ -941,7 +937,7 @@ def get_valid_inputs(Map margs, ArrayList extensions){
     Path input
     try {
         input = file(margs.input, checkIfExists: true)
-    } catch (NoSuchFileException e) {
+    } catch (java.nio.file.NoSuchFileException e) {
         error "Input path $margs.input does not exist."
     }
     // declare resulting input channel

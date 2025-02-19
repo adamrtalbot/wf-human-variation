@@ -5,12 +5,12 @@ process sample_probs {
     cpus 4
     memory { 8.GB * task.attempt - 1.GB }
     maxRetries 1
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
         tuple path(xam), path(xam_index), val(meta)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
     output:
-        env(probs), emit: probs
+        env('probs'), emit: probs
 
     script:
     // Set `--interval-size` to 5Mb to speed up sampling, and `--only-mapped -p 0.1` to be consistent with `pileup`
@@ -24,10 +24,10 @@ process modkit {
     cpus params.modkit_threads
     memory {(1.GB * params.modkit_threads * task.attempt) + 3.GB}
     maxRetries 1
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
         tuple val(meta), path(xam), path(xai)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         val options
     output:
         tuple val(meta), val('*'), path("${meta.alias}*bedmethyl.gz"), emit: modkit
@@ -55,10 +55,10 @@ process modkit_phase {
     // Phasing is a bit more greedy for memory. Use 2.GB/core + buffer.
     memory {(2.GB * params.modkit_threads * task.attempt) + 3.GB}
     maxRetries 1
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
         tuple val(meta), path(xam), path(xai)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         val options
     // some of the outputs can be optional based on the tagging (they can all be from one hap, either haps, or none)
     output:
@@ -125,12 +125,12 @@ process validate_modbam {
         tuple path(reference), 
             path(reference_index), 
             path(reference_cache),
-            env(REF_PATH)
+            env('REF_PATH')
     output:
         tuple path(alignment), 
             path(alignment_index), 
             val(meta),
-            env(valid)
+            env('valid')
 
     script:
     """

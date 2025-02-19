@@ -1,18 +1,12 @@
-import groovy.json.JsonBuilder
-
 // fix_vcf was unglued to avoid installing base deps in CNV container
 process callCNV {
     label "wf_cnv"
     cpus 1
     memory { 16.GB * task.attempt }
     maxRetries 1
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     // publish everything except the cnv_vcf to qdna_seq directory
-    publishDir = [
-        path: { "${params.out_dir}/qdna_seq" },
-        mode: 'copy',
-        saveAs: { filename -> filename.toString() ==~ /.*vcf\.gz.*/ ? null : filename }
-    ]
+    publishDir path: { "${params.out_dir}/qdna_seq" }, mode: 'copy', saveAs: { filename -> filename.toString() ==~ /.*vcf\.gz.*/ ? null : filename }
     input:
         tuple path(bam), path(bai), val(xam_meta)
         val(genome_build)
@@ -57,7 +51,7 @@ process getParams {
     output:
         path "params.json"
     script:
-        def paramsJSON = new JsonBuilder(params).toPrettyString()
+        def paramsJSON = new groovy.json.JsonBuilder(params).toPrettyString()
         """
         # Output nextflow params object to JSON
         echo '$paramsJSON' > params.json
@@ -81,17 +75,17 @@ process makeReport {
     script:
         def report_name = "${xam_meta.alias}.wf-human-cnv-report.html"
         """
-        workflow-glue report_cnv_qdnaseq \
-            -q ${cnv_calls} \
-            -o $report_name \
-            --read_stats ${read_stats}\
-            --params params.json \
-            --versions versions \
-            --bin_size ${params.qdnaseq_bin_size} \
-            --genome ${genome_build} \
-            --sample_id ${xam_meta.alias} \
-            --noise_plot ${noise_plot} \
-            --isobar_plot ${isobar_plot} \
+        workflow-glue report_cnv_qdnaseq \\
+            -q ${cnv_calls} \\
+            -o $report_name \\
+            --read_stats ${read_stats} \\
+            --params params.json \\
+            --versions versions \\
+            --bin_size ${params.qdnaseq_bin_size} \\
+            --genome ${genome_build} \\
+            --sample_id ${xam_meta.alias} \\
+            --noise_plot ${noise_plot} \\
+            --isobar_plot ${isobar_plot} \\
             --workflow_version ${workflow.manifest.version}
         """
 
