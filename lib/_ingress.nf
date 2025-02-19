@@ -21,7 +21,12 @@ process cram_to_bam {
     script:
     log.info "Converting input CRAM to BAM..."
     """
-    samtools view -@1 --reference ${ref} -b -o ${cram.simpleName}.bam##idx##${cram.simpleName}.bam.bai --write-index ${cram}
+    samtools view \\
+        -@ ${task.cpus} \\
+        --reference ${ref} \\
+        -b \\
+        -o ${cram.simpleName}.bam##idx##${cram.simpleName}.bam.bai \\
+        --write-index ${cram}
     """
 }
 
@@ -40,12 +45,12 @@ process minimap2_alignment {
         tuple val(meta), env('has_maps'), path("${params.sample_name}.${align_ext}"), path("${params.sample_name}.${align_ext}.${index_ext}"), emit: alignment
     script:
     """
-    samtools reset -x tp,cm,s1,s2,NM,MD,AS,SA,ms,nn,ts,cg,cs,dv,de,rl --no-PG ${reads} -o - \
-        | samtools bam2fq -@ ${params.ubam_bam2fq_threads} -T 1 - \
-        | minimap2 -y -t ${params.ubam_map_threads} -ax map-ont --cap-kalloc 100m --cap-sw-mem 50m \
-            ${reference} - \
-        | samtools sort -@ ${params.ubam_sort_threads} \
-            --write-index -o ${params.sample_name}.${align_ext}##idx##${params.sample_name}.${align_ext}.${index_ext} \
+    samtools reset -x tp,cm,s1,s2,NM,MD,AS,SA,ms,nn,ts,cg,cs,dv,de,rl --no-PG ${reads} -o - \\
+        | samtools bam2fq -@ ${params.ubam_bam2fq_threads} -T 1 - \\
+        | minimap2 -y -t ${params.ubam_map_threads} -ax map-ont --cap-kalloc 100m --cap-sw-mem 50m \\
+            ${reference} - \\
+        | samtools sort -@ ${params.ubam_sort_threads} \\
+            --write-index -o ${params.sample_name}.${align_ext}##idx##${params.sample_name}.${align_ext}.${index_ext} \\
             -O ${align_ext} --reference ${reference} -
 
     # Check that the first line is not unmapped
