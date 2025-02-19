@@ -154,14 +154,9 @@ workflow {
         }
     }
 
-    // Programmatically define chromosome codes.
-    // note that we avoid interpolation (eg. "${chr}N") to ensure that values
-    // are Strings and not GStringImpl, ensuring that .contains works.
-    ArrayList chromosome_codes = []
-    ArrayList chromosomes = [1..22] + ["X", "Y", "M", "MT"]
-    for (N in chromosomes.flatten()){
-        chromosome_codes += ["chr" + N, "" + N]
-    }
+    // Programmatically define chromosome codes
+    def chromosomes = [1..22, "X", "Y", "M", "MT"].flatten()
+    def chromosome_codes = chromosomes.collect { N -> ["chr${N}", "${N}"] }.flatten()
 
     // Trigger haplotagging
     def run_haplotagging = params.str || params.phased
@@ -498,9 +493,6 @@ workflow {
     bam_runids.splitText().subscribe(
         onNext: {
             ingressed_run_ids += it.strip()
-        },
-        onComplete: {
-            params.wf["ingress.run_ids"] = ingressed_run_ids
         }
     )
 
@@ -512,8 +504,8 @@ workflow {
             // there are intervals with enough coverage for downstream
             // analyses.
             n_lines = mosdepth_stats
-            | map{ it[1] }
-            | countLines()
+            .map { it[1] }
+            .countLines()
 
             // Ensure that the data have enough region coverage
             // and intervals in the output coverage BED file.
@@ -978,7 +970,7 @@ workflow {
         | mix(
             bam_stats.flatten(),
             bam_flag.flatten(),
-            mosdepth_stats.map{ meta, bed, dist, threshold -> [bed, dist, threshold]}.flatten(),
+            mosdepth_stats.map{ meta, _bed, dist, threshold -> [_bed, dist, threshold]}.flatten(),
             mosdepth_summary.flatten(),
             mosdepth_perbase.flatten(),
             mod_stats.flatten(),
@@ -992,11 +984,4 @@ workflow {
         | filter{it.name != 'OPTIONAL_FILE'}
     )
 
-}
-
-workflow.onComplete {
-    Pinguscript.ping_complete(nextflow, workflow, params)
-}
-workflow.onError {
-    Pinguscript.ping_error(nextflow, workflow, params)
 }
