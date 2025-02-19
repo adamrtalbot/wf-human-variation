@@ -21,7 +21,12 @@ process cram_to_bam {
     script:
     log.info "Converting input CRAM to BAM..."
     """
-    samtools view -@1 --reference ${ref} -b -o ${cram.simpleName}.bam##idx##${cram.simpleName}.bam.bai --write-index ${cram}
+    samtools view \\
+        -@ ${task.cpus} \\
+        --reference ${ref} \\
+        -b \\
+        -o ${cram.simpleName}.bam##idx##${cram.simpleName}.bam.bai \\
+        --write-index ${cram}
     """
 }
 
@@ -30,22 +35,22 @@ process minimap2_alignment {
     cpus {params.ubam_map_threads + params.ubam_sort_threads + params.ubam_bam2fq_threads}
     memory { (32.GB * task.attempt) - 1.GB }
     maxRetries 1
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
         path reference
         tuple val(meta), path(reads), path(reads_idx)
         tuple val(align_ext), val(index_ext) // either [bam, bai] or [cram, crai]
 
     output:
-        tuple val(meta), env(has_maps), path("${params.sample_name}.${align_ext}"), path("${params.sample_name}.${align_ext}.${index_ext}"), emit: alignment
+        tuple val(meta), env('has_maps'), path("${params.sample_name}.${align_ext}"), path("${params.sample_name}.${align_ext}.${index_ext}"), emit: alignment
     script:
     """
-    samtools reset -x tp,cm,s1,s2,NM,MD,AS,SA,ms,nn,ts,cg,cs,dv,de,rl --no-PG ${reads} -o - \
-        | samtools bam2fq -@ ${params.ubam_bam2fq_threads} -T 1 - \
-        | minimap2 -y -t ${params.ubam_map_threads} -ax map-ont --cap-kalloc 100m --cap-sw-mem 50m \
-            ${reference} - \
-        | samtools sort -@ ${params.ubam_sort_threads} \
-            --write-index -o ${params.sample_name}.${align_ext}##idx##${params.sample_name}.${align_ext}.${index_ext} \
+    samtools reset -x tp,cm,s1,s2,NM,MD,AS,SA,ms,nn,ts,cg,cs,dv,de,rl --no-PG ${reads} -o - \\
+        | samtools bam2fq -@ ${params.ubam_bam2fq_threads} -T 1 - \\
+        | minimap2 -y -t ${params.ubam_map_threads} -ax map-ont --cap-kalloc 100m --cap-sw-mem 50m \\
+            ${reference} - \\
+        | samtools sort -@ ${params.ubam_sort_threads} \\
+            --write-index -o ${params.sample_name}.${align_ext}##idx##${params.sample_name}.${align_ext}.${index_ext} \\
             -O ${align_ext} --reference ${reference} -
 
     # Check that the first line is not unmapped
@@ -63,7 +68,7 @@ process check_for_alignment {
         tuple path(reference), path(ref_idx)
         tuple val(meta), path(xam), path(xam_idx)
     output:
-        tuple env(to_align), env(has_maps), val(meta), path(xam), path(xam_idx)
+        tuple env('to_align'), env('has_maps'), val(meta), path(xam), path(xam_idx)
     script:
         """
         to_align=0

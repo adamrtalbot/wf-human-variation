@@ -1,5 +1,3 @@
-import groovy.json.JsonBuilder
-
 process getParams {
     label "wf_common"
     publishDir "${params.out_dir}", mode: 'copy', pattern: "params.json"
@@ -9,7 +7,7 @@ process getParams {
     output:
         path "params.json"
     script:
-        def paramsJSON = new JsonBuilder(params).toPrettyString()
+        def paramsJSON = new groovy.json.JsonBuilder(params).toPrettyString()
     """
     # Output nextflow params object to JSON
     echo '$paramsJSON' > params.json
@@ -35,12 +33,12 @@ process configure_igv {
     String locus_arg = locus_str ? "--locus $locus_str" : ""
     // extra options for alignment tracks
     def aln_opts_json_str = \
-        aln_extra_opts ? new JsonBuilder(aln_extra_opts).toPrettyString() : ""
+        aln_extra_opts ? new groovy.json.JsonBuilder(aln_extra_opts).toPrettyString() : ""
     String aln_extra_opts_arg = \
         aln_extra_opts ? "--extra-alignment-opts extra-aln-opts.json" : ""
     // extra options for variant tracks
     def var_opts_json_str = \
-        var_extra_opts ? new JsonBuilder(var_extra_opts).toPrettyString() : ""
+        var_extra_opts ? new groovy.json.JsonBuilder(var_extra_opts).toPrettyString() : ""
     String var_extra_opts_arg = \
         var_extra_opts ? "--extra-vcf-opts extra-var-opts.json" : ""
     """
@@ -48,11 +46,11 @@ process configure_igv {
     echo '$aln_opts_json_str' > extra-aln-opts.json
     echo '$var_opts_json_str' > extra-var-opts.json
 
-    workflow-glue configure_igv \
-        --fofn file-names.txt \
-        $locus_arg \
-        $aln_extra_opts_arg \
-        $var_extra_opts_arg \
+    workflow-glue configure_igv \\
+        --fofn file-names.txt \\
+        $locus_arg \\
+        $aln_extra_opts_arg \\
+        $var_extra_opts_arg \\
     > igv.json
     """
 }

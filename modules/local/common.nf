@@ -1,5 +1,3 @@
-import groovy.json.JsonBuilder
-
 process cram_cache {
     cpus 1
     memory 4.GB
@@ -7,8 +5,8 @@ process cram_cache {
         path reference
     output:
         path("ref_cache/"), emit: ref_cache
-        env(REF_PATH), emit: ref_path
-    shell:
+        env('REF_PATH'), emit: ref_path
+    script:
     '''
     # Invoke from binary installed to container PATH
     seq_cache_populate.pl -root ref_cache/ !{reference}
@@ -23,6 +21,8 @@ process index_ref_fai {
         file reference
     output:
         path "${reference}.fai", emit: reference_index
+
+    script:
     """
     samtools faidx ${reference}
     """
@@ -35,6 +35,7 @@ process index_ref_gzi {
         file reference
     output:
         path "${reference}.gzi", emit: reference_index
+    script:
     """
     bgzip -r ${reference}
     """
@@ -48,6 +49,7 @@ process decompress_ref {
         file compressed_ref
     output:
         path "${compressed_ref.baseName}", emit: decompressed_ref
+    script:
     """
     gzip -df ${compressed_ref}
     """
@@ -57,13 +59,13 @@ process decompress_ref {
 //NOTE grep MOSDEPTH_TUPLE if changing output tuple
 process mosdepth {
     cpus 4
-    memory {4.GB * task.attempt}
+    memory { 4.GB * task.attempt }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
         file target_bed
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH) 
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH') 
         val (window_size)
         val (create_gene_summary)
     output:
@@ -84,18 +86,18 @@ process mosdepth {
         # and convert them into windows of the given size [CW-2015]
         # The workflow now sort the bed input, merge overlapping intervals and then build windows
         # preventing crash in downstream tools [CW-2247]
-        sort -k 1,1 -k2,2n ${target_bed} | \
-            bedtools merge -i - | \
-            bedtools makewindows -b - -w ${window_size} > cut.bed
+        sort -k 1,1 -k2,2n ${target_bed} \\
+        | bedtools merge -i - \\
+        | bedtools makewindows -b - -w ${window_size} > cut.bed
         # Run mosdepth
-        mosdepth \
-        -x \
-        -t $task.cpus \
-        -b cut.bed \
-        --thresholds 1,10,15,20,30 \
-        ${perbase_args} \
-        ${xam_meta.alias} \
-        $xam
+        mosdepth \\
+            -x \\
+            -t $task.cpus \\
+            -b cut.bed \\
+            --thresholds 1,10,15,20,30 \\
+            ${perbase_args} \\
+            ${xam_meta.alias} \\
+            $xam
 
         # Rename the output, avoiding ambiguity in the output formatting
         if [ -e ${xam_meta.alias}.per-base.bed.gz ]; then
@@ -105,18 +107,21 @@ process mosdepth {
         # If gene summary requested and a BED provided, run mosdepth again without -x to get precise coverage 
         # Use thresholds and regions file to create gene summary
         if [ "${create_gene_summary}" = true ]; then
-            mosdepth \
-            -t $task.cpus \
-            -b ${target_bed} \
-            --thresholds 1,10,15,20,30 \
-            --no-per-base \
-            ${xam_meta.alias}.gene \
+            mosdepth \\
+            -t $task.cpus \\
+            -b ${target_bed} \\
+            --thresholds 1,10,15,20,30 \\
+            --no-per-base \\
+            ${xam_meta.alias}.gene \\
             $xam
 
             gunzip -c ${xam_meta.alias}.gene.thresholds.bed.gz > thresholds.bed
             gunzip -c ${xam_meta.alias}.gene.regions.bed.gz  > regions.bed
 
-            workflow-glue generate_gene_summary --mosdepth_threshold thresholds.bed --mosdepth_average regions.bed --output ${xam_meta.alias}.gene_summary.tsv
+            workflow-glue generate_gene_summary \\
+                --mosdepth_threshold thresholds.bed \\
+                --mosdepth_average regions.bed \\
+                --output ${xam_meta.alias}.gene_summary.tsv
         fi
         """
 }
@@ -129,7 +134,7 @@ process readStats {
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
         path target_bed
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
     output:
         path "${xam_meta.alias}.readstats.tsv.gz", emit: read_stats
         path "${xam_meta.alias}.flagstat.tsv", emit: flagstat
@@ -139,14 +144,14 @@ process readStats {
     script:
         def view_threads = Math.max(task.cpus - 2, 1)
         """
-        samtools view --threads ${view_threads} -u -h -L ${target_bed} ${xam} | bamstats \
-            -s ${xam_meta.alias} \
-            -i ${xam_meta.alias}.per-file-runids.txt \
-            -l ${xam_meta.alias}.basecallers.tsv \
-            --histogram ${xam_meta.alias}-histograms \
-            -u \
-            -f ${xam_meta.alias}.flagstat.tsv \
-            --threads 2 \
+        samtools view --threads ${view_threads} -u -h -L ${target_bed} ${xam} | bamstats \\
+            -s ${xam_meta.alias} \\
+            -i ${xam_meta.alias}.per-file-runids.txt \\
+            -l ${xam_meta.alias}.basecallers.tsv \\
+            --histogram ${xam_meta.alias}-histograms \\
+            -u \\
+            -f ${xam_meta.alias}.flagstat.tsv \\
+            --threads 2 \\
             - | gzip > "${xam_meta.alias}.readstats.tsv.gz"
         # get unique run IDs
         awk -F '\\t' '
@@ -173,6 +178,7 @@ process publish_artifact {
         file fname
     output:
         file fname
+    script:
     """
     echo "Writing output files"
     """
@@ -183,7 +189,7 @@ process getAllChromosomesBed {
     cpus 1
     memory 4.GB
     input:
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
     output:
         path "allChromosomes.bed", emit: all_chromosomes_bed
     shell:
@@ -199,8 +205,8 @@ process getGenome {
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
     output:
-        env genome_build, emit: genome_build optional true
-     script:
+        env 'genome_build', emit: genome_build, optional: true
+    script:
         // set flags for subworkflows that have genome build restrictions
         def str_arg = params.str ? "--str" : ""
         """
@@ -224,10 +230,10 @@ process eval_downsampling {
     script:
         def with_bed = bed.name != 'OPTIONAL_FILE' ? "--bed ${bed}" : ""
         """
-        workflow-glue downsampling_ratio \
-            --downsample_depth ${params.downsample_coverage_target} \
-            --margin ${params.downsample_coverage_margin} \
-            --summary ${mosdepth_summary} \
+        workflow-glue downsampling_ratio \\
+            --downsample_depth ${params.downsample_coverage_target} \\
+            --margin ${params.downsample_coverage_margin} \\
+            --summary ${mosdepth_summary} \\
             ${with_bed} > ratio.txt
         """
 }
@@ -238,11 +244,11 @@ process downsampling {
     memory 4.GB
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         tuple val(to_downsample), val(downsampling_rate)
         tuple val(xam_fmt), val(xai_fmt)
     output:
-        tuple path("downsampled.${xam_fmt}"), path("downsampled.${xam_fmt}.${xai_fmt}"), val(xam_meta), emit: xam optional true
+        tuple path("downsampled.${xam_fmt}"), path("downsampled.${xam_fmt}.${xai_fmt}"), val(xam_meta), emit: xam, optional: true
     script:
         """
         samtools view \\
@@ -283,9 +289,9 @@ process get_region_coverage {
     
     # Extract original regions with reasonable coverage. We first intersect, sort the kept intervals,
     # merge the adjacent and then sort again.
-    bedtools intersect -a !{bed} -b !{xam_meta.alias}.regions.filt.bed.gz | \
-        sort -k1,1 -k2,2n | \
-        bedtools merge -i - | \
+    bedtools intersect -a !{bed} -b !{xam_meta.alias}.regions.filt.bed.gz | \\
+        sort -k1,1 -k2,2n | \\
+        bedtools merge -i - | \\
         sort -k1,1 -k2,2n > !{bed.baseName}.filt.bed
     '''
 }
@@ -308,7 +314,7 @@ process failedQCReport  {
             path('ref.fasta'),
             path('ref.fasta.fai'),
             path('ref_cache/'),
-            env(REF_PATH),
+            env('REF_PATH'),
             path("versions.txt"),
             path("params.json"),
             val(using_user_bed)
@@ -323,7 +329,7 @@ process failedQCReport  {
         // a small region, and flat everywhere else) but only for the regions selected.
         def genome_wide_depth = params.bed ? "" : "--reference_fai ref.fasta.fai"
         def report_name = "${xam_meta.alias}.wf-human-alignment-report.html"
-        def using_user_bed = using_user_bed ? "--using_user_bed" : ""
+        def using_user_bed_cmd = using_user_bed ? "--using_user_bed" : ""
         """
         workflow-glue report_al \\
             --name ${report_name} \\
@@ -339,7 +345,7 @@ process failedQCReport  {
             ${genome_wide_depth} \\
             --low_cov ${params.bam_min_coverage} \\
             --workflow_version ${workflow.manifest.version} \\
-            ${using_user_bed}
+            ${using_user_bed_cmd}
         """
 }
 
@@ -360,7 +366,7 @@ process makeAlignmentReport {
             path('ref.fasta'),
             path('ref.fasta.fai'),
             path('ref_cache/'),
-            env(REF_PATH),
+            env('REF_PATH'),
             path("versions.txt"),
             path("params.json"),
             val(using_user_bed)
@@ -370,7 +376,7 @@ process makeAlignmentReport {
 
     script:
         def report_name = "${xam_meta.alias}.wf-human-alignment-report.html"
-        def using_user_bed = using_user_bed ? "--using_user_bed" : ""
+        def using_user_bed_cmd = using_user_bed ? "--using_user_bed" : ""
         """
         workflow-glue report_al \\
             --name ${report_name} \\
@@ -385,7 +391,7 @@ process makeAlignmentReport {
             --window_size ${params.depth_window_size} \\
             --params params.json \\
             --workflow_version ${workflow.manifest.version} \\
-            ${using_user_bed}
+            ${using_user_bed_cmd}
         """
 }
 
@@ -408,7 +414,7 @@ process getParams {
     output:
         path "params.json"
     script:
-        def paramsJSON = new JsonBuilder(params).toPrettyString()
+        def paramsJSON = new groovy.json.JsonBuilder(params).toPrettyString()
         """
         # Output nextflow params object to JSON
         echo '$paramsJSON' > params.json
@@ -555,7 +561,7 @@ process sanitise_bed {
     memory 4.GB
     input:
         path(bed)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
     output:
         path "${bed.baseName}.sanitised.bed"
     script:
@@ -596,15 +602,15 @@ process combine_metrics_json {
         // If haplocheck is optional file, then skip it
         String haplocheck_arg = params.haplocheck && haplocheck.baseName != "OPTIONAL_FILE" ? "--haplocheck ${haplocheck}" : ""
         """
-        workflow-glue combine_jsons \
-            --bamstats_flagstats flagstat.tsv \
-            --bamstats_hists hists \
-            --mosdepth_summary mosdepth.summary.txt \
-            --mosdepth_thresholds thresholds.bed.gz \
-            ${haplocheck_arg} \
-            ${sex_arg} \
-            ${input_jsons} \
-            --metadata "sample_sheet.alias=${xam_meta.alias}" \
+        workflow-glue combine_jsons \\
+            --bamstats_flagstats flagstat.tsv \\
+            --bamstats_hists hists \\
+            --mosdepth_summary mosdepth.summary.txt \\
+            --mosdepth_thresholds thresholds.bed.gz \\
+            ${haplocheck_arg} \\
+            ${sex_arg} \\
+            ${input_jsons} \\
+            --metadata "sample_sheet.alias=${xam_meta.alias}" \\
             --output ${xam_meta.alias}.stats.json
         """
 }
@@ -620,6 +626,7 @@ process output_cnv {
         path fname
     output:
         path fname
+    script:
     """
     echo "Writing output files"
     """
@@ -639,7 +646,7 @@ process infer_sex {
     input:
         path "mosdepth.summary.txt"
     output:
-        env inferred_sex
+        env 'inferred_sex'
     script:
         """
         # First, grep the X and Y coverage for the regions; then compute the rate if both are non-0; finally, infer the sex.
@@ -650,7 +657,7 @@ process infer_sex {
                 \$1=="Y_region" || \$1=="chrY_region" {y_cov=\$4};
                 END {
                     if (x_cov > 0 && y_cov > 0) print x_cov/y_cov; else print 0
-                }' mosdepth.summary.txt \
+                }' mosdepth.summary.txt \\
                 | awk '\$1 > 4 {print "XX"}; \$1<=4 && \$1!=0 {print "XY"}; \$1==0 {print "XX"}' )
         """
 }
@@ -663,7 +670,7 @@ process haplocheck {
     errorStrategy 'ignore'
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         val mt_chr
     output:
         path "${xam_meta.alias}.haplocheck.tsv"
@@ -683,14 +690,14 @@ process haplocheck {
         # We already checked if the reference has a valid mitogenome.
         if [ \$n_reads -gt 0 ]; then
             # Run mutserve
-            java -jar `which mutserve.jar` call \
-                --level 0.01 \
-                --reference mt.fa \
-                --mapQ 20 \
-                --baseQ 20 \
-                --output mt.vcf.gz \
-                --no-ansi \
-                --threads ${task.cpus} \
+            java -jar `which mutserve.jar` call \\
+                --level 0.01 \\
+                --reference mt.fa \\
+                --mapQ 20 \\
+                --baseQ 20 \\
+                --output mt.vcf.gz \\
+                --no-ansi \\
+                --threads ${task.cpus} \\
                 ${xam_meta.alias}
 
             # Before running haplocheck, count how many sites are in the

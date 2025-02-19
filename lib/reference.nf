@@ -7,7 +7,6 @@
 // 1. generate the cram cache, with annex environmental
 //    `REF_PATH` variable
 // 2. generate the minimap2 `.mmi` index, for faster alignment
-Map colors = NfcoreTemplate.logColours(params.monochrome_logs)
 
 // Argument parser
 Map parse_reference(Map arguments) {
@@ -32,7 +31,7 @@ process cram_cache {
     input:
         path reference
     output:
-        tuple path("ref_cache/"), env(REF_PATH), emit: ref_cache
+        tuple path("ref_cache/"), env('REF_PATH'), emit: ref_cache
     shell:
     '''
     # Invoke from binary installed to container PATH
@@ -93,6 +92,7 @@ process decompress_ref {
         path "ref.fa.gz"
     output:
         path "ref.fa", emit: decompressed_ref
+    script:
     """
     gzip -df ref.fa.gz
     """
@@ -119,6 +119,7 @@ workflow prepare_reference {
     take:
         arguments
     main:
+        Map colors = NfcoreTemplate.logColours(params.monochrome_logs)
         Map margs = parse_reference(arguments)
 
         // Base ref channel

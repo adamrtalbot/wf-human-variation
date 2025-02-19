@@ -1,5 +1,3 @@
-import groovy.json.JsonBuilder
-
 include {
     callCNV;
     getVersions;
@@ -9,10 +7,7 @@ include {
     makeReport
 } from "../modules/local/wf-human-cnv.nf"
 
-include {
-    mosdepth;
-    annotate_vcf
-} from "../modules/local/common.nf"
+include { mosdepth; annotate_vcf } from "../modules/local/common.nf"
 
 workflow cnv {
     take:
@@ -24,7 +19,7 @@ workflow cnv {
     main:
         // get mosdepth results for window size 1000
         mosdepth(bam, bed, ref, "1000", false)
-        mosdepth_stats = mosdepth.out.mosdepth_tuple.map{ meta, bed, dist, threshold -> [bed, dist, threshold]}
+        mosdepth_stats = mosdepth.out.mosdepth_tuple.map { _meta, _bed, dist, threshold -> [ _bed, dist, threshold ] }
         mosdepth_summary = mosdepth.out.summary
         if (params.depth_intervals) {
             mosdepth_perbase = mosdepth.out.perbase

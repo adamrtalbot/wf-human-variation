@@ -1,13 +1,19 @@
-import groovy.json.JsonBuilder
-
-def longphase_memory = [8.GB, 32.GB, 56.GB]
-def whatshap_memory = [4.GB, 8.GB, 12.GB]
-def haptag_memory = [4.GB, 8.GB, 12.GB]
-def aggregate_memory = [4.GB, 8.GB, 16.GB]
+def longphase_memory() {
+    [8.GB, 32.GB, 56.GB]
+} 
+def whatshap_memory() {
+    [4.GB, 8.GB, 12.GB]
+}
+def haptag_memory() {
+    [4.GB, 8.GB, 12.GB]
+}
+def aggregate_memory() {
+    [4.GB, 8.GB, 16.GB]
+}
 
 // As of Clair3 v1.0.6, set `--min_snp_af` and `--min_indel_af` to 0 with `--vcf_fn`.
-def snp_min_af = params.vcf_fn ? "--snp_min_af 0.0": "--snp_min_af ${params.snp_min_af}"
-def indel_min_af = params.vcf_fn ? "--indel_min_af 0.0" : "--indel_min_af ${params.indel_min_af}"
+// def snp_min_af = params.vcf_fn ? "--snp_min_af 0.0": "--snp_min_af ${params.snp_min_af}"
+// def indel_min_af = params.vcf_fn ? "--indel_min_af 0.0" : "--indel_min_af ${params.indel_min_af}"
 
 process make_chunks {
     // Do some preliminaries. Ordinarily this would setup a working directory
@@ -18,7 +24,7 @@ process make_chunks {
     memory 4.GB
     input:
         tuple path(xam), path(xam_idx), val(xam_meta)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         path bed
         path model_path
         val chromosome_codes
@@ -34,6 +40,8 @@ process make_chunks {
         def bedprnt = bed.name != 'OPTIONAL_FILE' ? "--bed_fn=${bed}" : ''
         def vcfargs = genotyping_vcf.baseName != "OPTIONAL_FILE" ? "--vcf_fn ${genotyping_vcf}" : ""
         def vcfprnt = genotyping_vcf.baseName != "OPTIONAL_FILE" ? "--vcf_fn=${genotyping_vcf}" : ""
+        def snp_min_af = params.vcf_fn ? "--snp_min_af 0.0": "--snp_min_af ${params.snp_min_af}"
+        def indel_min_af = params.vcf_fn ? "--indel_min_af 0.0" : "--indel_min_af ${params.indel_min_af}"
         // Define contigs in order to enforce the mitochondrial genome calling, which is otherwise skipped.
         String ctgs = chromosome_codes.join(',')
         def ctg_name = "--ctg_name ${ctgs}"
@@ -50,24 +58,24 @@ process make_chunks {
         mkdir -p clair_output/tmp
         echo "run_clair3.sh --bam_fn=${xam} ${bedprnt} --ref_fn=${ref} ${vcfprnt} --output=clair_output --platform=ont --sample_name=${xam_meta.alias} --model_path=${model_path.simpleName} --ctg_name=${params.ctg_name} ${ctg_name} --include_all_ctgs=${params.include_all_ctgs} --chunk_num=0 --chunk_size=5000000 --qual=${params.min_qual} --var_pct_full=${params.var_pct_full} --ref_pct_full=${params.ref_pct_full} ${snp_min_af} ${indel_min_af} --min_contig_size=${params.min_contig_size}" > clair_output/tmp/CMD
         # CW-2456: prepare other inputs normally
-        python \$(which clair3.py) CheckEnvs \
-            --bam_fn ${xam} \
-            ${bedargs} \
-            --output_fn_prefix clair_output \
-            --ref_fn ${ref} \
-            ${vcfargs} \
-            ${ctg_name} \
-            --chunk_num 0 \
-            --chunk_size 5000000 \
-            --include_all_ctgs ${params.include_all_ctgs} \
-            --threads 1  \
-            --qual ${params.min_qual} \
-            --sampleName ${xam_meta.alias} \
-            --var_pct_full ${params.var_pct_full} \
-            --ref_pct_full ${params.ref_pct_full} \
-            ${snp_min_af} \
-            ${indel_min_af} \
-            --min_contig_size ${params.min_contig_size} \
+        python \$(which clair3.py) CheckEnvs \\
+            --bam_fn ${xam} \\
+            ${bedargs} \\
+            --output_fn_prefix clair_output \\
+            --ref_fn ${ref} \\
+            ${vcfargs} \\
+            ${ctg_name} \\
+            --chunk_num 0 \\
+            --chunk_size 5000000 \\
+            --include_all_ctgs ${params.include_all_ctgs} \\
+            --threads 1  \\
+            --qual ${params.min_qual} \\
+            --sampleName ${xam_meta.alias} \\
+            --var_pct_full ${params.var_pct_full} \\
+            --ref_pct_full ${params.ref_pct_full} \\
+            ${snp_min_af} \\
+            ${indel_min_af} \\
+            --min_contig_size ${params.min_contig_size} \\
             --cmd_fn clair_output/tmp/CMD
         """
 }
@@ -83,7 +91,7 @@ process pileup_variants {
     input:
         each region
         tuple path(xam), path(xam_idx), val(xam_meta)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         path model
         path bed
         path command
@@ -97,28 +105,30 @@ process pileup_variants {
         //       name since that's parsed in the SortVcf step
         // note: snp_min_af and indel_min_af have an impact on performance
         def bedargs = bed.name != 'OPTIONAL_FILE' ? "--bed_fn ${bed} --extend_bed split_bed/${region.contig}" : ''
+        def snp_min_af = params.vcf_fn ? "--snp_min_af 0.0": "--snp_min_af ${params.snp_min_af}"
+        def indel_min_af = params.vcf_fn ? "--indel_min_af 0.0" : "--indel_min_af ${params.indel_min_af}"
         """
-        python \$(which clair3.py) CallVariantsFromCffi \
-            --chkpnt_fn ${model}/pileup \
-            --bam_fn ${xam} \
-            --call_fn pileup_${region.contig}_${region.chunk_id}.vcf \
-            --ref_fn ${ref} \
-            --ctgName ${region.contig} \
-            --chunk_id ${region.chunk_id} \
-            --chunk_num ${region.total_chunks} \
-            --platform ont \
-            --fast_mode False \
-            ${snp_min_af} \
-            ${indel_min_af} \
-            --minMQ ${params.min_mq} \
-            --minCoverage ${params.min_cov} \
-            --call_snp_only False \
-            --gvcf ${params.GVCF} \
-            --base_err ${params.base_err} \
-            --gq_bin_size ${params.gq_bin_size} \
-            --temp_file_dir gvcf_tmp_path \
-            --cmd_fn ${command} \
-            --pileup \
+        python \$(which clair3.py) CallVariantsFromCffi \\
+            --chkpnt_fn ${model}/pileup \\
+            --bam_fn ${xam} \\
+            --call_fn pileup_${region.contig}_${region.chunk_id}.vcf \\
+            --ref_fn ${ref} \\
+            --ctgName ${region.contig} \\
+            --chunk_id ${region.chunk_id} \\
+            --chunk_num ${region.total_chunks} \\
+            --platform ont \\
+            --fast_mode False \\
+            ${snp_min_af} \\
+            ${indel_min_af} \\
+            --minMQ ${params.min_mq} \\
+            --minCoverage ${params.min_cov} \\
+            --call_snp_only False \\
+            --gvcf ${params.GVCF} \\
+            --base_err ${params.base_err} \\
+            --gq_bin_size ${params.gq_bin_size} \\
+            --temp_file_dir gvcf_tmp_path \\
+            --cmd_fn ${command} \\
+            --pileup \\
             ${bedargs}
         """
 }
@@ -130,12 +140,12 @@ process aggregate_pileup_variants {
     // to use for phasing.
     label "wf_human_snp"
     cpus 2
-    memory { aggregate_memory[task.attempt - 1] }
+    memory { aggregate_memory()[task.attempt - 1] }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy  { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         // these need to be named as original, as program uses info from
         // contigs file to filter
         tuple val(xam_meta), path("input_vcfs/*")
@@ -146,20 +156,20 @@ process aggregate_pileup_variants {
         path "phase_qual", emit: phase_qual
     shell:
         '''
-        pypy $(which clair3.py) SortVcf \
-            --input_dir input_vcfs/ \
-            --vcf_fn_prefix pileup \
-            --output_fn pileup.vcf \
-            --sampleName !{xam_meta.alias} \
-            --ref_fn !{ref} \
-            --contigs_fn !{contigs} \
+        pypy $(which clair3.py) SortVcf \\
+            --input_dir input_vcfs/ \\
+            --vcf_fn_prefix pileup \\
+            --output_fn pileup.vcf \\
+            --sampleName !{xam_meta.alias} \\
+            --ref_fn !{ref} \\
+            --contigs_fn !{contigs} \\
             --cmd_fn !{command}
 
         # Replaced bgzip with the faster bcftools index -n
-        if [ "$( bcftools index -n pileup.vcf.gz )" -eq 0 ]; \
+        if [ "$( bcftools index -n pileup.vcf.gz )" -eq 0 ]; \\
         then echo "[INFO] Exit in pileup variant calling"; exit 1; fi
 
-        bgzip -@ !{task.cpus} -fdc pileup.vcf.gz | \
+        bgzip -@ !{task.cpus} -fdc pileup.vcf.gz | \\
             pypy $(which clair3.py) SelectQual --phase --output_fn .
         '''
 }
@@ -180,9 +190,9 @@ process select_het_snps {
         tuple val(contig), path("split_folder/${contig}.vcf.gz"), path("split_folder/${contig}.vcf.gz.tbi"), emit: het_snps_vcf
     shell:
         '''
-        pypy $(which clair3.py) SelectHetSnp \
-            --vcf_fn pileup.vcf.gz \
-            --split_folder split_folder \
+        pypy $(which clair3.py) SelectHetSnp \\
+            --vcf_fn pileup.vcf.gz \\
+            --split_folder split_folder \\
             --ctgName !{contig}
 
         bgzip -c split_folder/!{contig}.vcf > split_folder/!{contig}.vcf.gz
@@ -197,19 +207,19 @@ process phase_contig {
     //   but adds the VCF as it is now tagged with phasing information
     //   used later in the full-alignment model
     cpus 4
-    memory { longphase_memory[task.attempt - 1] }
+    memory { longphase_memory()[task.attempt - 1] }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
-        tuple val(contig), path(het_snps), path(het_snps_tbi), path(xam), path(xam_idx), val(xam_meta), path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple val(contig), path(het_snps), path(het_snps_tbi), path(xam), path(xam_idx), val(xam_meta), path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
     output:
         tuple val(contig), path(xam), path(xam_idx), val(xam_meta), path("phased_${contig}.vcf.gz"), emit: phased_bam_and_vcf
     script:
         // Intermediate phasing is performed with longphase.
         """
         echo "Using longphase for phasing"
-        longphase phase --ont -o phased_${contig} \
+        longphase phase --ont -o phased_${contig} \\
             -s ${het_snps} -b ${xam} -r ${ref} -t ${task.cpus}
         bgzip phased_${contig}.vcf
         tabix -f -p vcf phased_${contig}.vcf.gz
@@ -229,7 +239,7 @@ process cat_haplotagged_contigs {
     memory 15.GB // cat should not need this, but weirdness occasionally strikes
     input:
         tuple val(xam_meta), path(contig_bams) // intermediate input always BAM here
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         tuple val(xam_fmt), val(xai_fmt)
     output:
         tuple path("${xam_meta.alias}.haplotagged.${xam_fmt}"), path("${xam_meta.alias}.haplotagged.${xam_fmt}.${xai_fmt}"), emit: merged_xam
@@ -261,7 +271,17 @@ process cat_haplotagged_contigs {
 
     # cat just cats, if we want bam, we'll have to deal with that ourselves
     if [ "${xam_fmt}" = "cram" ]; then
-        samtools cat -b cat.fofn --no-PG -o - | samtools view --no-PG -@ ${threads} --reference ${ref} -O CRAM --write-index -o "${xam_meta.alias}.haplotagged.cram##idx##${xam_meta.alias}.haplotagged.cram.crai"
+        samtools cat \\
+            -b cat.fofn \\
+            --no-PG \\
+            -o - \\
+        | samtools view \\
+            --no-PG \\
+            -@ ${threads} \\
+            --reference ${ref} \\
+            -O CRAM \\
+            --write-index \\
+            -o "${xam_meta.alias}.haplotagged.cram##idx##${xam_meta.alias}.haplotagged.cram.crai"
     else
         samtools cat -b cat.fofn --no-PG -@ ${threads} -o "${xam_meta.alias}.haplotagged.bam"
         samtools index -@ ${threads} -b "${xam_meta.alias}.haplotagged.bam"
@@ -283,11 +303,11 @@ process get_qual_filter {
         '''
         echo "[INFO] 5/7 Select candidates for full-alignment calling"
         mkdir -p output
-        bgzip -fdc pileup.vcf.gz | \
-        pypy $(which clair3.py) SelectQual \
-                --output_fn output \
-                --var_pct_full !{params.var_pct_full} \
-                --ref_pct_full !{params.ref_pct_full} \
+        bgzip -fdc pileup.vcf.gz | \\
+        pypy $(which clair3.py) SelectQual \\
+                --output_fn output \\
+                --var_pct_full !{params.var_pct_full} \\
+                --ref_pct_full !{params.ref_pct_full} \\
                 --platform ont 
         '''
 }
@@ -303,14 +323,14 @@ process create_candidates {
     memory 4.GB
     input:
         each contig
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         tuple val(xam_meta), path("pileup.vcf.gz"), path("pileup.vcf.gz.tbi")
         // this is used implicitely by the program
         // https://github.com/HKU-BAL/Clair3/blob/329d09b39c12b6d8d9097aeb1fe9ec740b9334f6/preprocess/SelectCandidates.py#L146
         path "candidate_bed/qual"
     output:
         tuple val(xam_meta), val(contig), path("candidate_bed/${contig}.*"), emit: candidate_bed, optional: true
-    shell:
+    script:
         // This creates BED files as candidate_bed/<ctg>.0_14 with candidates
         // along with a file the FULL_ALN_FILE_<ctg> listing all of the BED
         // files.  All we really want are the BEDs, the file of filenames is
@@ -319,16 +339,16 @@ process create_candidates {
 
         // TODO: would be nice to control the number of BEDs produced to enable
         // better parallelism.
-        '''
-        pypy $(which clair3.py) SelectCandidates \
-            --pileup_vcf_fn pileup.vcf.gz \
-            --split_folder candidate_bed \
-            --ref_fn !{ref} \
-            --var_pct_full !{params.var_pct_full} \
-            --ref_pct_full !{params.ref_pct_full} \
-            --platform ont \
-            --ctgName !{contig}
-        '''
+        """
+        pypy \$(which clair3.py) SelectCandidates \\
+            --pileup_vcf_fn pileup.vcf.gz \\
+            --split_folder candidate_bed \\
+            --ref_fn !{ref} \\
+            --var_pct_full ${params.var_pct_full} \\
+            --ref_pct_full ${params.ref_pct_full} \\
+            --platform ont \\
+            --ctgName ${contig}
+        """
 }
 
 
@@ -340,37 +360,39 @@ process evaluate_candidates {
     // [CW-5461] recent testing has shown the Q90 for this is <2GB. we have seen more trouble with this in cloud that may be impacted by reducing this - we can configure that independently if this causes issues.
     memory { 3.GB * task.attempt }
     maxRetries 3
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
         tuple val(contig), path(phased_xam), path(phased_xai), val(xam_meta), path(phased_vcf)
-        tuple val(contig), path(candidate_bed)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple val(contig2), path(candidate_bed)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         path(model)
         path(command)
     output:
         tuple val(xam_meta), path("output/full_alignment_*.vcf"), emit: full_alignment
     script:
         filename = candidate_bed.name
+        def snp_min_af = params.vcf_fn   ? "--snp_min_af 0.0"   : "--snp_min_af ${params.snp_min_af}"
+        def indel_min_af = params.vcf_fn ? "--indel_min_af 0.0" : "--indel_min_af ${params.indel_min_af}"
         """
         mkdir -p output
         echo "[INFO] 6/7 Call low-quality variants using full-alignment model"
-        python \$(which clair3.py) CallVariantsFromCffi \
-            --chkpnt_fn ${model}/full_alignment \
-            --bam_fn ${phased_xam} \
-            --call_fn output/full_alignment_${filename}.vcf \
-            --sampleName ${xam_meta.alias} \
-            --ref_fn ${ref} \
-            --full_aln_regions ${candidate_bed} \
-            --ctgName ${contig} \
-            --add_indel_length \
-            --gvcf ${params.GVCF} \
-            --minMQ ${params.min_mq} \
-            --minCoverage ${params.min_cov} \
-            ${snp_min_af} \
-            ${indel_min_af} \
-            --platform ont \
-            --cmd_fn ${command} \
+        python \$(which clair3.py) CallVariantsFromCffi \\
+            --chkpnt_fn ${model}/full_alignment \\
+            --bam_fn ${phased_xam} \\
+            --call_fn output/full_alignment_${filename}.vcf \\
+            --sampleName ${xam_meta.alias} \\
+            --ref_fn ${ref} \\
+            --full_aln_regions ${candidate_bed} \\
+            --ctgName ${contig} \\
+            --add_indel_length \\
+            --gvcf ${params.GVCF} \\
+            --minMQ ${params.min_mq} \\
+            --minCoverage ${params.min_cov} \\
+            ${snp_min_af} \\
+            ${indel_min_af} \\
+            --platform ont \\
+            --cmd_fn ${command} \\
             --phased_vcf_fn ${phased_vcf}
         """
 }
@@ -380,12 +402,12 @@ process aggregate_full_align_variants {
     // Sort and merge all "full alignment" variants
     label "wf_human_snp"
     cpus 2
-    memory { aggregate_memory[task.attempt - 1] }
+    memory { aggregate_memory()[task.attempt - 1] }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         tuple val(xam_meta), path("full_alignment/*")
         path contigs
         path "gvcf_tmp_path/*"
@@ -395,12 +417,12 @@ process aggregate_full_align_variants {
         path "non_var.gvcf", optional: true, emit: non_var_gvcf
     shell:
         '''
-        pypy $(which clair3.py) SortVcf \
-            --input_dir full_alignment \
-            --output_fn full_alignment.vcf \
-            --sampleName !{xam_meta.alias} \
-            --ref_fn !{ref} \
-            --cmd_fn !{command} \
+        pypy $(which clair3.py) SortVcf \\
+            --input_dir full_alignment \\
+            --output_fn full_alignment.vcf \\
+            --sampleName !{xam_meta.alias} \\
+            --ref_fn !{ref} \\
+            --cmd_fn !{command} \\
             --contigs_fn !{contigs}
 
         if [ "$( bcftools index -n full_alignment.vcf.gz )" -eq 0 ]; then
@@ -410,13 +432,13 @@ process aggregate_full_align_variants {
 
         # TODO: this could be a separate process
         if [ "!{params.GVCF}" == "true" ]; then
-            pypy $(which clair3.py) SortVcf \
-                --input_dir gvcf_tmp_path \
-                --vcf_fn_suffix .tmp.gvcf \
-                --output_fn non_var.gvcf \
-                --sampleName !{xam_meta.alias} \
-                --ref_fn !{ref} \
-                --cmd_fn !{command} \
+            pypy $(which clair3.py) SortVcf \\
+                --input_dir gvcf_tmp_path \\
+                --vcf_fn_suffix .tmp.gvcf \\
+                --output_fn non_var.gvcf \\
+                --sampleName !{xam_meta.alias} \\
+                --ref_fn !{ref} \\
+                --cmd_fn !{command} \\
                 --contigs_fn !{contigs}
         fi
         '''
@@ -430,7 +452,7 @@ process merge_pileup_and_full_vars{
     memory 4.GB
     input:
         each contig
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         tuple val(xam_meta), path(pile_up_vcf), path(pile_up_vcf_tbi)
         tuple path(full_aln_vcf), path(full_aln_vcf_tbi)
         path "non_var.gvcf"
@@ -442,19 +464,19 @@ process merge_pileup_and_full_vars{
         '''
         mkdir -p output
         echo "[INFO] 7/7 Merge pileup VCF and full-alignment VCF"
-        pypy $(which clair3.py) MergeVcf \
-            --pileup_vcf_fn !{pile_up_vcf} \
-            --bed_fn_prefix candidate_beds \
-            --full_alignment_vcf_fn !{full_aln_vcf} \
-            --output_fn output/merge_!{contig}.vcf \
-            --platform ont \
-            --print_ref_calls False \
-            --gvcf !{params.GVCF} \
-            --haploid_precise False \
-            --haploid_sensitive False \
-            --gvcf_fn output/merge_!{contig}.gvcf \
-            --non_var_gvcf_fn non_var.gvcf \
-            --ref_fn !{ref} \
+        pypy $(which clair3.py) MergeVcf \\
+            --pileup_vcf_fn !{pile_up_vcf} \\
+            --bed_fn_prefix candidate_beds \\
+            --full_alignment_vcf_fn !{full_aln_vcf} \\
+            --output_fn output/merge_!{contig}.vcf \\
+            --platform ont \\
+            --print_ref_calls False \\
+            --gvcf !{params.GVCF} \\
+            --haploid_precise False \\
+            --haploid_sensitive False \\
+            --gvcf_fn output/merge_!{contig}.gvcf \\
+            --non_var_gvcf_fn non_var.gvcf \\
+            --ref_fn !{ref} \\
             --ctgName !{contig}
 
         bgzip -c output/merge_!{contig}.vcf > output/merge_!{contig}.vcf.gz
@@ -468,15 +490,15 @@ process post_clair_phase_contig {
     // CW-2383: now uses base image to allow phasing of both snps and indels
     cpus { params.use_longphase ? 4 : 1}
     // Define memory from phasing tool and number of attempt
-    memory { params.use_longphase ? longphase_memory[task.attempt - 1] : whatshap_memory[task.attempt - 1] }
+    memory { params.use_longphase ? longphase_memory()[task.attempt - 1] : whatshap_memory()[task.attempt - 1] }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
         tuple val(xam_meta), val(contig),
             path(vcf), path(vcf_tbi),
             path(xam), path(xam_idx),
-            path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+            path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
     output:
         tuple val(xam_meta),
             path("phased_${contig}.vcf.gz"), path("phased_${contig}.vcf.gz.tbi"),
@@ -484,13 +506,13 @@ process post_clair_phase_contig {
         tuple val(contig),
             path("phased_${contig}.vcf.gz"), path("phased_${contig}.vcf.gz.tbi"),
             path(xam), path(xam_idx), val(xam_meta),
-            path(ref), path(ref_idx), path(ref_cache), env(REF_PATH),
+            path(ref), path(ref_idx), path(ref_cache), env('REF_PATH'),
             emit: for_tagging
     script:
     if (params.use_longphase)
         """
         echo "Using longphase for phasing"
-        longphase phase --ont -o phased_${contig} \
+        longphase phase --ont -o phased_${contig} \\
             -s ${vcf} -b ${xam} -r ${ref} -t ${task.cpus}
         bgzip phased_${contig}.vcf
         tabix -f -p vcf phased_${contig}.vcf.gz
@@ -499,13 +521,13 @@ process post_clair_phase_contig {
     """
         # REF_PATH points to the reference cache and allows faster parsing of CRAM files
         echo "Using whatshap for phasing"
-        whatshap phase \
-            --output phased_${contig}.vcf.gz \
-            --reference ${ref} \
-            --chromosome ${contig} \
-            --ignore-read-groups \
-            --only-snvs \
-            ${vcf} \
+        whatshap phase \\
+            --output phased_${contig}.vcf.gz \\
+            --reference ${ref} \\
+            --chromosome ${contig} \\
+            --ignore-read-groups \\
+            --only-snvs \\
+            ${vcf} \\
             ${xam}
         tabix -f -p vcf phased_${contig}.vcf.gz
         """
@@ -520,25 +542,25 @@ process post_clair_contig_haplotag {
 
     cpus 4
     // Define memory from phasing tool and number of attempt
-    memory { haptag_memory[task.attempt - 1] }
+    memory { haptag_memory()[task.attempt - 1] }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
         tuple val(contig),
             path(vcf), path(tbi),
             path(xam), path(xam_idx), val(xam_meta),
-            path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+            path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
     output:
         tuple val(xam_meta), val(contig), path("${contig}_hp.bam"), path("${contig}_hp.bam.bai"), emit: phased_bam
     script:
     """
-    whatshap haplotag \
-        --reference ${ref} \
-        --ignore-read-groups \
-        --regions ${contig} \
-        phased_${contig}.vcf.gz \
-        ${xam} \
+    whatshap haplotag \\
+        --reference ${ref} \\
+        --ignore-read-groups \\
+        --regions ${contig} \\
+        phased_${contig}.vcf.gz \\
+        ${xam} \\
     | samtools view -O bam --reference $ref -@3 -o ${contig}_hp.bam##idx##${contig}_hp.bam.bai --write-index
     """
 }
@@ -549,9 +571,9 @@ process aggregate_all_variants{
     cpus 4
     memory { 8.GB * task.attempt }
     maxRetries 2
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
     input:
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         tuple val(xam_meta), path("merge_output/*")
         path "merge_outputs_gvcf/*"
         val phase_vcf
@@ -565,13 +587,13 @@ process aggregate_all_variants{
         """
         ls merge_output/*.vcf.gz | parallel --jobs 4 "bgzip -d {}"
 
-        pypy \$(which clair3.py) SortVcf \
-            --input_dir merge_output \
-            --vcf_fn_prefix $prefix \
-            --output_fn ${xam_meta.alias}.wf_snp.vcf \
-            --sampleName ${xam_meta.alias} \
-            --ref_fn ${ref} \
-            --cmd_fn ${command} \
+        pypy \$(which clair3.py) SortVcf \\
+            --input_dir merge_output \\
+            --vcf_fn_prefix $prefix \\
+            --output_fn ${xam_meta.alias}.wf_snp.vcf \\
+            --sampleName ${xam_meta.alias} \\
+            --ref_fn ${ref} \\
+            --cmd_fn ${command} \\
             --contigs_fn ${contigs}
 
         if [ "\$( bgzip -fdc ${xam_meta.alias}.wf_snp.vcf.gz | grep -v '#' | wc -l )" -eq 0 ]; then
@@ -581,14 +603,14 @@ process aggregate_all_variants{
 
         # TODO: this could be a separate process
         if [ "${params.GVCF}" == "true" ]; then
-            pypy \$(which clair3.py) SortVcf \
-                --input_dir merge_outputs_gvcf \
-                --vcf_fn_prefix merge \
-                --vcf_fn_suffix .gvcf \
-                --output_fn tmp.gvcf \
-                --sampleName ${xam_meta.alias} \
-                --ref_fn ${ref} \
-                --cmd_fn ${command} \
+            pypy \$(which clair3.py) SortVcf \\
+                --input_dir merge_outputs_gvcf \\
+                --vcf_fn_prefix merge \\
+                --vcf_fn_suffix .gvcf \\
+                --output_fn tmp.gvcf \\
+                --sampleName ${xam_meta.alias} \\
+                --ref_fn ${ref} \\
+                --cmd_fn ${command} \\
                 --contigs_fn ${contigs}
 
                 # Reheading samples named "SAMPLE" to xam_meta.alias.
@@ -607,12 +629,12 @@ process refine_with_sv {
     cpus 4
     memory { 8.GB * task.attempt - 1.GB }
     maxRetries 1
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy { task.exitStatus in [137,140] ? 'retry' : 'finish' }
 
     input:
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH) 
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH') 
         tuple val(xam_meta), path(clair_vcf, stageAs: 'clair.vcf.gz'), path(clair_tbi, stageAs: 'clair.vcf.gz.tbi'), val(contig)
-        tuple path(xam), path(xam_idx), val(xam_meta) // this may be a haplotagged_bam or input CRAM 
+        tuple path(xam), path(xam_idx), val(xam_meta2) // this may be a haplotagged_bam or input CRAM 
         path(sniffles_vcf)
     output:
         tuple val(xam_meta), path("${xam_meta.alias}.${contig}.wf_snp.vcf.gz"), path("${xam_meta.alias}.${contig}.wf_snp.vcf.gz.tbi"), emit: vcf
@@ -646,7 +668,12 @@ process phase_gvcf {
     script:
         """
         # Transfer annotation.
-        bcftools annotate --threads ${task.cpus - 1} -O z --annotations clair3.vcf.gz -c FORMAT/GT,FORMAT/PS clair3.gvcf.gz > ${xam_meta.alias}.wf_snp.gvcf.gz \
+        bcftools annotate \\
+            --threads ${task.cpus - 1} \\
+            -O z \\
+            --annotations clair3.vcf.gz \\
+            -c FORMAT/GT,FORMAT/PS \\
+            clair3.gvcf.gz > ${xam_meta.alias}.wf_snp.gvcf.gz \
         && tabix -p vcf ${xam_meta.alias}.wf_snp.gvcf.gz
         """
 }
@@ -663,14 +690,14 @@ process hap {
     shell:
         '''
         mkdir -p happy
-        /opt/hap.py/bin/hap.py \
-            truth.vcf \
-            clair.vcf.gz \
-            -f truth.bed \
-            -r ref.fasta \
-            -o happy \
-            --engine=vcfeval \
-            --threads=4 \
+        /opt/hap.py/bin/hap.py \\
+            truth.vcf \\
+            clair.vcf.gz \\
+            -f truth.bed \\
+            -r ref.fasta \\
+            -o happy \\
+            --engine=vcfeval \\
+            --threads=4 \\
             --pass-only
         '''
 }
@@ -687,6 +714,7 @@ process output_snp {
         file fname
     output:
         file fname
+    script:
     """
     echo "Writing output files"
     """
@@ -711,7 +739,7 @@ process getParams {
     output:
         path "params.json"
     script:
-        def paramsJSON = new JsonBuilder(params).toPrettyString()
+        def paramsJSON = new groovy.json.JsonBuilder(params).toPrettyString()
         """
         # Output nextflow params object to JSON
         echo '$paramsJSON' > params.json
@@ -726,6 +754,7 @@ process vcfStats {
         tuple val(xam_meta), path(vcf), path(index)
     output:
         tuple val(xam_meta), path("variants.stats")
+    script:
     """
     bcftools stats --threads ${task.cpus - 1} $vcf > variants.stats
     """
@@ -742,8 +771,8 @@ process makeReport {
         path "params.json"
         path clinvar_vcf
     output:
-        path "${xam_meta.alias}.wf-human-snp-report.html", emit: 'report', optional: true
-        path "${xam_meta.alias}.snvs.json", emit: 'json'
+        path "${xam_meta.alias}.wf-human-snp-report.html", emit: report, optional: true
+        path "${xam_meta.alias}.snvs.json", emit: json
     script:
         def clinvar = clinvar_vcf ?: ""
         def annotation = params.annotation ? "" : "--skip_annotation"
@@ -755,14 +784,14 @@ process makeReport {
             wfversion = workflow.commitId
         }
         """
-        workflow-glue report_snp \
-        $report_name \
-        --versions $versions \
-        --params params.json \
-        --vcf_stats $vcfstats \
-        --sample_name $xam_meta.alias \
-        --clinvar_vcf $clinvar \
-        --workflow_version ${workflow.manifest.version} \
+        workflow-glue report_snp \\
+        $report_name \\
+        --versions $versions \\
+        --params params.json \\
+        --vcf_stats $vcfstats \\
+        --sample_name $xam_meta.alias \\
+        --clinvar_vcf $clinvar \\
+        --workflow_version ${workflow.manifest.version} \\
         $annotation $generate_html
         """
 }
@@ -777,7 +806,7 @@ process lookup_clair3_model {
         path("lookup_table")
         val basecall_model
     output:
-        tuple env(clair3_model), path("model/")
+        tuple env('clair3_model'), path("model/")
     script:
     """
     clair3_model=\$(resolve_clair3_model.py lookup_table '${basecall_model}')

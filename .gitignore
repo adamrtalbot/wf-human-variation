@@ -5,3 +5,7 @@ template-workflow
 .*.swo
 *.pyc
 *.pyo
+wf-human-variation-demo/
+*.sh
+output/
+*.tar.gz

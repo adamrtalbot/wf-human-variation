@@ -79,8 +79,8 @@ include {
 
 
 // entrypoint workflow
-WorkflowMain.initialise(workflow, params, log)
 workflow {
+    WorkflowMain.initialise(workflow, params, log)
 
     Map colors = NfcoreTemplate.logColours(params.monochrome_logs)
 
@@ -154,14 +154,9 @@ workflow {
         }
     }
 
-    // Programmatically define chromosome codes.
-    // note that we avoid interpolation (eg. "${chr}N") to ensure that values
-    // are Strings and not GStringImpl, ensuring that .contains works.
-    ArrayList chromosome_codes = []
-    ArrayList chromosomes = [1..22] + ["X", "Y", "M", "MT"]
-    for (N in chromosomes.flatten()){
-        chromosome_codes += ["chr" + N, "" + N]
-    }
+    // Programmatically define chromosome codes
+    def chromosomes = [1..22, "X", "Y", "M", "MT"].flatten()
+    def chromosome_codes = chromosomes.collect { N -> ["chr${N}", "${N}"] }.flatten()
 
     // Trigger haplotagging
     def run_haplotagging = params.str || params.phased
@@ -386,9 +381,9 @@ workflow {
         // prepare ready files
         ratio.ready
             .combine(pass_bam_channel)
-            .map{ready, ratio, xam, xai, meta -> [xam, xai, meta]}
+            .map{ready, _ratio, xam, xai, meta -> [xam, xai, meta]}
             .branch{
-                xam, xai, meta ->
+                xam, _xai, _meta ->
                 cram: xam.name.endsWith('.cram')
                 bam: xam.name.endsWith('.bam')
             }
@@ -398,7 +393,7 @@ workflow {
         // Avoid issues with BAM being passed to `cram_to_bam`.
         ready_bam_channel = cram_to_bam(
             branched_bam_channel.cram,
-            ref_channel.map { ref, index, cache, path -> [ref, index] }
+            ref_channel.map { _ref, index, cache, path -> [_ref, index] }
         )
         | map { xam, xai, meta -> [xam, xai, meta + [output: false, is_cram: false]] }
         | mix(branched_bam_channel.bam)
@@ -498,9 +493,6 @@ workflow {
     bam_runids.splitText().subscribe(
         onNext: {
             ingressed_run_ids += it.strip()
-        },
-        onComplete: {
-            params.wf["ingress.run_ids"] = ingressed_run_ids
         }
     )
 
@@ -512,8 +504,8 @@ workflow {
             // there are intervals with enough coverage for downstream
             // analyses.
             n_lines = mosdepth_stats
-            | map{ it[1] }
-            | countLines()
+            .map { it[1] }
+            .countLines()
 
             // Ensure that the data have enough region coverage
             // and intervals in the output coverage BED file.
@@ -533,8 +525,8 @@ workflow {
                 // Check if the coverage is appropriate
                 | map {
                     mean, n_lines_v -> 
-                    int n_lines = n_lines_v as int
-                    boolean pass = mean > params.bam_min_coverage && n_lines > 0
+                    int _n_lines = n_lines_v as int
+                    boolean pass = mean > params.bam_min_coverage && _n_lines > 0
                     [pass, mean]
                 }
 
@@ -978,7 +970,7 @@ workflow {
         | mix(
             bam_stats.flatten(),
             bam_flag.flatten(),
-            mosdepth_stats.map{ meta, bed, dist, threshold -> [bed, dist, threshold]}.flatten(),
+            mosdepth_stats.map{ meta, _bed, dist, threshold -> [_bed, dist, threshold]}.flatten(),
             mosdepth_summary.flatten(),
             mosdepth_perbase.flatten(),
             mod_stats.flatten(),
@@ -992,11 +984,4 @@ workflow {
         | filter{it.name != 'OPTIONAL_FILE'}
     )
 
-}
-
-workflow.onComplete {
-    Pinguscript.ping_complete(nextflow, workflow, params)
-}
-workflow.onError {
-    Pinguscript.ping_error(nextflow, workflow, params)
 }

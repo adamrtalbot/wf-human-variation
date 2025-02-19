@@ -1,5 +1,3 @@
-import groovy.json.JsonBuilder
-
 process call_str {
     // first subset the repeats BED file, then use this to do straglr genotyping
     // sex comes from either params.sex or from inferred_sex
@@ -11,7 +9,7 @@ process call_str {
     memory 4.GB
     input:
         tuple path(xam), path(xam_idx), val(xam_meta), val(sex)
-        tuple path(ref), path(ref_idx), path(ref_cache), env(REF_PATH)
+        tuple path(ref), path(ref_idx), path(ref_cache), env('REF_PATH')
         path(repeat_bed)
     output:
         // emit meta.sq as join key (TODO a multi sample approach will want a compound key)
@@ -23,14 +21,14 @@ process call_str {
         """
         { grep '${chr}' -Fw ${repeat_bed} || true; } > repeats_subset.bed
         if [[ -s repeats_subset.bed ]]; then
-            straglr-genotype --loci repeats_subset.bed \
-                --sample ${xam_meta.alias} \
-                --tsv ${chr}_straglr.tsv \
-                -v ${chr}_tmp.vcf \
-                --sex ${straglr_sex} \
-                --min_support 1 \
-                --threads 1 \
-                --min_cluster_size 1 \
+            straglr-genotype --loci repeats_subset.bed \\
+                --sample ${xam_meta.alias} \\
+                --tsv ${chr}_straglr.tsv \\
+                -v ${chr}_tmp.vcf \\
+                --sex ${straglr_sex} \\
+                --min_support 1 \\
+                --threads 1 \\
+                --min_cluster_size 1 \\
                 ${xam} ${ref}
             bgzip -c ${chr}_tmp.vcf > ${chr}_straglr.vcf.gz
             tabix -p vcf ${chr}_straglr.vcf.gz
@@ -54,13 +52,13 @@ process annotate_repeat_expansions {
     script:
         def chr = join_key
         """
-        stranger -f ${variant_catalogue_hg38} ${vcf} \
-            | sed 's/\\ /_/g' \
+        stranger -f ${variant_catalogue_hg38} ${vcf} \\
+            | sed 's/\\ /_/g' \\
             | bgzip -c > ${chr}_repeat-expansion_annotated.vcf.gz
         tabix -p vcf ${chr}_repeat-expansion_annotated.vcf.gz
-        SnpSift extractFields ${chr}_repeat-expansion_annotated.vcf.gz \
+        SnpSift extractFields ${chr}_repeat-expansion_annotated.vcf.gz \\
             CHROM POS ALT FILTER REF RL RU REPID VARID STR_STATUS > ${chr}_repeat-expansion_annotated.tsv
-        SnpSift extractFields ${chr}_repeat-expansion_annotated.vcf.gz \
+        SnpSift extractFields ${chr}_repeat-expansion_annotated.vcf.gz \\
             CHROM POS DisplayRU STR_NORMAL_MAX STR_PATHOLOGIC_MIN VARID Disease > ${chr}_repeat-expansion_plot.tsv
         """
 }
@@ -96,10 +94,10 @@ process bam_read_filter {
         tuple val(chr), path(xam), path(xam_idx), val(xam_meta), path(vcf), path(straglr_tsv)
     output:
         tuple path ("*str_reads.bam"), path("*str_reads.bam.bai"), val(xam_meta)
-    shell:
+    script:
         """
-        tail -n +3 !{straglr_tsv} | cut -f6 > reads_to_filter.txt
-        samtools view --write-index -N reads_to_filter.txt -o !{chr}.wf_str_reads.bam##idx##!{chr}.wf_str_reads.bam.bai !{xam}
+        tail -n +3 ${straglr_tsv} | cut -f6 > reads_to_filter.txt
+        samtools view --write-index -N reads_to_filter.txt -o ${chr}.wf_str_reads.bam##idx##${chr}.wf_str_reads.bam.bai ${xam}
         """
 }
 
@@ -116,11 +114,11 @@ process generate_str_content {
     script:
         sub_meta = ["alias": xam_meta.alias]
         """
-        workflow-glue generate_str_content \
-            --straglr ${straglr_tsv} \
-            --stranger ${stranger_tsv} \
-            --chr ${chr} \
-            --repeat_bed ${repeat_bed} \
+        workflow-glue generate_str_content \\
+            --straglr ${straglr_tsv} \\
+            --stranger ${stranger_tsv} \\
+            --chr ${chr} \\
+            --repeat_bed ${repeat_bed} \\
             --str_reads_bam ${xam}
         """
 }
@@ -168,19 +166,19 @@ process make_report {
         // if params.sex is not provided, assume the workflow inferred it
         String sex_source = params.sex ? "user-provided" : "workflow-inferred"
         """
-        workflow-glue report_str \
-            -o $report_name \
-            --params params.json \
-            --sample_name ${xam_meta.alias} \
-            --version versions.txt \
-            --vcf ${vcf} \
-            --straglr ${straglr_tsv} \
-            --stranger ${plot_tsv} \
-            --stranger_annotation ${stranger_annotation} \
-            --str_content ${str_content} \
-            --read_stats ${bam_stats} \
-            --sex ${sex} \
-            --sex_source ${sex_source} \
+        workflow-glue report_str \\
+            -o $report_name \\
+            --params params.json \\
+            --sample_name ${xam_meta.alias} \\
+            --version versions.txt \\
+            --vcf ${vcf} \\
+            --straglr ${straglr_tsv} \\
+            --stranger ${plot_tsv} \\
+            --stranger_annotation ${stranger_annotation} \\
+            --str_content ${str_content} \\
+            --read_stats ${bam_stats} \\
+            --sex ${sex} \\
+            --sex_source ${sex_source} \\
             --workflow_version ${workflow.manifest.version}
         """
 }
@@ -207,7 +205,7 @@ process getParams {
     output:
         path "params.json"
     script:
-        def paramsJSON = new JsonBuilder(params).toPrettyString()
+        def paramsJSON = new groovy.json.JsonBuilder(params).toPrettyString()
         """
         # Output nextflow params object to JSON
         echo '$paramsJSON' > params.json
@@ -226,6 +224,7 @@ process output_str {
         path fname
     output:
         path fname
+    script:
     """
     echo "Writing output files"
     """

@@ -5,9 +5,9 @@ process publish_geneyx {
 
     input:
         tuple val(meta), path('snv.vcf.gz'), path('snv.vcf.gz.tbi')
-        tuple val(meta), path('sv.vcf.gz'), path('sv.vcf.gz.tbi')
-        tuple val(meta), path('cnv.vcf.gz'), path('cnv.vcf.gz.tbi')
-        tuple val(meta), path('str.vcf.gz'), path('str.vcf.gz.tbi')
+        tuple val(meta2), path('sv.vcf.gz'), path('sv.vcf.gz.tbi')
+        tuple val(meta3), path('cnv.vcf.gz'), path('cnv.vcf.gz.tbi')
+        tuple val(meta4), path('str.vcf.gz'), path('str.vcf.gz.tbi')
 
     output:
         tuple path("${meta.alias}.wf_snp.geneyx.vcf.gz"), path("${meta.alias}.wf_snp.geneyx.vcf.gz.tbi"), optional: true
@@ -23,8 +23,8 @@ process publish_geneyx {
     def str = params.str ? "-r str.vcf.gz" : ""
     """
     if ${prep_sv}; then
-        workflow-glue unify_vcf ${sv} ${cnv} ${str} -o ${meta.alias}.wf_sv.geneyx.vcf && \
-            bcftools sort -O z -o ${meta.alias}.wf_sv.geneyx.vcf.gz ${meta.alias}.wf_sv.geneyx.vcf && \
+        workflow-glue unify_vcf ${sv} ${cnv} ${str} -o ${meta.alias}.wf_sv.geneyx.vcf && \\
+            bcftools sort -O z -o ${meta.alias}.wf_sv.geneyx.vcf.gz ${meta.alias}.wf_sv.geneyx.vcf && \\
             bcftools index -t ${meta.alias}.wf_sv.geneyx.vcf.gz && rm ${meta.alias}.wf_sv.geneyx.vcf
     fi
 
@@ -47,8 +47,8 @@ process publish_fabric {
 
     script:
     """
-    bcftools concat ${vcfs} --rm-dups exact -a -O u | \
-        bcftools sort -O z > ${alias}.fabric.vcf.gz && \
+    bcftools concat ${vcfs} --rm-dups exact -a -O u | \\
+        bcftools sort -O z > ${alias}.fabric.vcf.gz && \\
         bcftools index -t ${alias}.fabric.vcf.gz
     """
 }
